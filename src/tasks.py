@@ -1,7 +1,6 @@
 import math
-
 import torch
-
+from torch.nn import functional as F
 
 def squared_error(ys_pred, ys):
     return (ys - ys_pred).square()
@@ -60,6 +59,7 @@ def get_task_sampler(
         "quadratic_regression": QuadraticRegression,
         "relu_2nn_regression": Relu2nnRegression,
         "decision_tree": DecisionTree,
+        "glm": GLM,
     }
     if task_name in task_names_to_classes:
         task_cls = task_names_to_classes[task_name]
@@ -342,3 +342,58 @@ class DecisionTree(Task):
     @staticmethod
     def get_training_metric():
         return mean_squared_error
+
+class GLM(Task):
+    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, seeds=None):
+        super().__init__(n_dims, batch_size, None, seeds)
+        self.function_type = function_type
+        self.r = r
+        self.scale = scale
+
+        self.w_b = torch.randn(batch_size, n_dims)
+        if seeds is not None:
+            generator = torch.Generator()
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed)
+                self.w_b[i] = torch.randn(n_dims, generator=generator)
+
+    #Gets f(x) aka y label
+    def evaluate(self, xs_b):
+        B, K, D = xs_b.shape
+        w_b = self.w_b.to(xs_b.device)
+        z = (xs_b @ w_b.unsqueeze(-1)).squeeze(-1)
+
+        if self.function_type == "linear":
+            return z
+        elif self.function_type == "sigmoid":
+            return torch.sigmoid(z)
+        elif self.function_type == "poisson":
+            return torch.poisson(torch.exp(z.clamp(max=10)))
+        elif self.function_type == "logistic":
+            return torch.bernoulli(torch.sigmoid(z))
+        elif self.function_type == "neg_binomial":
+            mu = torch.exp(z.clamp(max=10))
+            r = self.r
+            p = r / (r + mu)
+            return torch.distributions.NegativeBinomial(total_count=r, probs=p).sample()
+        else:
+            raise NotImplementedError
+
+    @staticmethod
+    def get_metric():
+        return squared_error
+
+    @staticmethod
+    def get_training_metric():
+        def get_training_metric(self):
+            if self.function_type in ["linear", "sigmoid"]:
+                return mean_squared_error
+            elif self.function_type in ["poisson", "neg_binomial"]:
+                return mean_squared_error
+            elif self.function_type == "logistic":
+                return F.binary_cross_entropy
+            elif self.function_type == "multinomial":
+                return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
+            else:
+                raise NotImplementedError
+    

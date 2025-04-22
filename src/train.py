@@ -36,10 +36,12 @@ def sample_seeds(total_seeds, count):
 
 
 def train(model, args):
+    #optimizers
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)
 
     starting_step = 0
+    #loading from stopped training
     state_path = os.path.join(args.out_dir, "state.pt")
     if os.path.exists(state_path):
         state = torch.load(state_path)
@@ -48,10 +50,12 @@ def train(model, args):
         starting_step = state["train_step"]
         for i in range(state["train_step"] + 1):
             curriculum.update()
-
+    #dimension of x, batchsize
     n_dims = model.n_dims
     bsize = args.training.batch_size
+    #Sampler from D_x (Like from Paper)
     data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
+    #Sampler from F (in our case a GLM) -> needs to be made random
     task_sampler = get_task_sampler(
         args.training.task,
         n_dims,

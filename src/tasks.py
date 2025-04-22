@@ -1,6 +1,7 @@
 import math
 import torch
 from torch.nn import functional as F
+from torch.nn import PoissonNLLLoss
 
 def squared_error(ys_pred, ys):
     return (ys - ys_pred).square()
@@ -350,18 +351,20 @@ class GLM(Task):
         self.r = r
         self.scale = scale
 
-        self.w_b = torch.randn(batch_size, n_dims)
+        self.w_b = torch.randn(batch_size, n_dims, 1)
         if seeds is not None:
             generator = torch.Generator()
             for i, seed in enumerate(seeds):
                 generator.manual_seed(seed)
-                self.w_b[i] = torch.randn(n_dims, generator=generator)
+                self.w_b[i] = torch.randn(n_dims, 1, generator=generator)
+
+
 
     #Gets f(x) aka y label
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        z = (xs @ w_b.unsqueeze(-1)).squeeze(-1)
+        z = (xs @ w_b).squeeze(-1)
 
         if self.function_type == "linear":
             return z

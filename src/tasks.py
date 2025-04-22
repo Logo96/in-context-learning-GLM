@@ -383,17 +383,15 @@ class GLM(Task):
     def get_metric():
         return squared_error
 
-    @staticmethod
-    def get_training_metric():
-        def get_training_metric(self):
-            if self.function_type in ["linear", "sigmoid"]:
-                return mean_squared_error
-            elif self.function_type in ["poisson", "neg_binomial"]:
-                return mean_squared_error
-            elif self.function_type == "logistic":
-                return F.binary_cross_entropy
-            elif self.function_type == "multinomial":
-                return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
-            else:
-                raise NotImplementedError
+    def get_training_metric(self):
+        if self.function_type in ["linear", "sigmoid"]:
+            return mean_squared_error
+        elif self.function_type in ["poisson", "neg_binomial"]:
+            return mean_squared_error
+        elif self.function_type == "logistic":
+            return F.binary_cross_entropy
+        elif self.function_type == "multinomial":
+            return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
+        else:
+            raise NotImplementedError
     

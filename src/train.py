@@ -34,7 +34,7 @@ def sample_seeds(total_seeds, count):
         seeds.add(randint(0, total_seeds - 1))
     return seeds
 
-
+GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
 def train(model, args):
     #optimizers
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
@@ -55,19 +55,20 @@ def train(model, args):
     bsize = args.training.batch_size
     #Sampler from D_x (Like from Paper)
     data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
-    #Sampler from F (in our case a GLM) -> needs to be made random
-    task_sampler = get_task_sampler(
-        args.training.task,
-        n_dims,
-        bsize,
-        num_tasks=args.training.num_tasks,
-        **args.training.task_kwargs,
-    )
     pbar = tqdm(range(starting_step, args.training.train_steps))
 
     num_training_examples = args.training.num_training_examples
 
     for i in pbar:
+        #Sampler from F (in our case a GLM)
+        task_sampler = get_task_sampler(
+            args.training.task,
+            n_dims,
+            bsize,
+            function_type=GLM_TYPES[i % len(GLM_TYPES)],
+            num_tasks=args.training.num_tasks,
+            **args.training.task_kwargs,
+        )
         data_sampler_args = {}
         task_sampler_args = {}
 
@@ -114,6 +115,7 @@ def train(model, args):
                     ),
                     "n_points": curriculum.n_points,
                     "n_dims": curriculum.n_dims_truncated,
+                    "glm_type": GLM_TYPES[i % len(GLM_TYPES)]
                 },
                 step=i,
             )

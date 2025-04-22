@@ -34,8 +34,7 @@ def sample_seeds(total_seeds, count):
         seeds.add(randint(0, total_seeds - 1))
     return seeds
 
-GLM_Function = "Poisson"
-def train(model, args):
+def train(model, args, glm_function="poisson"):
      #optimizers
      optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
      curriculum = Curriculum(args.training.curriculum)
@@ -61,7 +60,7 @@ def train(model, args):
          args.training.task,
          n_dims,
          bsize,
-         GLM_Function,
+         function_type=glm_function,
          num_tasks=args.training.num_tasks,
          **args.training.task_kwargs,
      )
@@ -139,8 +138,8 @@ def train(model, args):
          ):
              torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
 
-GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
 def train_All_GLMS(model, args):
+    GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
     #optimizers
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)

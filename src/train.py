@@ -1,7 +1,7 @@
 import os
 from random import randint
 import uuid
-
+import copy
 from quinine import QuinineArgumentParser
 from tqdm import tqdm
 import torch
@@ -34,7 +34,7 @@ def sample_seeds(total_seeds, count):
         seeds.add(randint(0, total_seeds - 1))
     return seeds
 
-def train(model, args, glm_function="poisson"):
+def train(model, args, glm_function=None):
      #optimizers
      optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
      curriculum = Curriculum(args.training.curriculum)
@@ -60,10 +60,9 @@ def train(model, args, glm_function="poisson"):
          args.training.task,
          n_dims,
          bsize,
-         function_type=glm_function,
          num_tasks=args.training.num_tasks,
-         **args.training.task_kwargs,
      )
+     
      pbar = tqdm(range(starting_step, args.training.train_steps))
  
      num_training_examples = args.training.num_training_examples
@@ -171,7 +170,6 @@ def train_All_GLMS(model, args):
             bsize,
             function_type=GLM_TYPES[i % len(GLM_TYPES)],
             num_tasks=args.training.num_tasks,
-            **args.training.task_kwargs,
         )
         data_sampler_args = {}
         task_sampler_args = {}
@@ -265,7 +263,7 @@ def main(args):
     model.cuda()
     model.train()
 
-    train(model, args)
+    train(model, args, glm_function=args.training.task_kwargs.get("function_type"))
 
     if not args.test_run:
         _ = get_run_metrics(args.out_dir)  # precompute metrics for eval

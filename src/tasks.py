@@ -396,7 +396,7 @@ class GLM(Task):
         elif self.function_type in ["poisson", "neg_binomial"]:
             return mean_squared_error
         elif self.function_type == "logistic":
-            return F.binary_cross_entropy
+            return lambda input, target: F.binary_cross_entropy(torch.sigmoid(input), target)
         elif self.function_type == "multinomial":
             return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
         else:

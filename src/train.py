@@ -18,12 +18,16 @@ import wandb
 
 torch.backends.cudnn.benchmark = True
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_step(model, xs, ys, optimizer, loss_func):
+    xs = xs.to(device)
+    ys = ys.to(device)
     optimizer.zero_grad()
     output = model(xs, ys)
     loss = loss_func(output, ys)
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     optimizer.step()
     return loss.detach().item(), output.detach()
 
@@ -64,7 +68,7 @@ def train(model, args, glm_function=None):
 
     pbar = tqdm(range(starting_step, args.training.train_steps))
     num_training_examples = args.training.num_training_examples
-
+    
     for i in pbar:
         # 1) Sample data
         data_sampler_args = {}
@@ -79,8 +83,9 @@ def train(model, args, glm_function=None):
             curriculum.n_dims_truncated,
             **data_sampler_args,
         )
-
         task = task_sampler()
+
+        
         print(f"[Step {i}] Function_type: {task.function_type}")
 
         ys = task.evaluate(xs)
@@ -93,13 +98,13 @@ def train(model, args, glm_function=None):
 
         # 3) Train on that fresh batch/task
         loss_func = task.get_training_metric()
-        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func)
+        loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
 
         print(f"[Step {i}] Output shape: {output.shape}, Loss: {loss:.4f}")
 
         point_wise_tags     = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
-        point_wise_loss     = point_wise_loss_func(output, ys.cuda()).mean(dim=0)
+        point_wise_loss     = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
 
         baseline_loss = (
             sum(
@@ -206,11 +211,11 @@ def train_All_GLMS(model, args):
 
         loss_func = task.get_training_metric()
 
-        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func)
+        loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
 
         point_wise_tags = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
-        point_wise_loss = point_wise_loss_func(output, ys.cuda()).mean(dim=0)
+        point_wise_loss = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
 
         baseline_loss = (
             sum(
@@ -262,18 +267,18 @@ def main(args):
         curriculum_args.dims.start = curriculum_args.dims.end
         args.training.train_steps = 100
     else:
-        wandb.init(
-            dir=args.out_dir,
-            project=args.wandb.project,
-            entity=args.wandb.entity,
-            config=args.__dict__,
-            notes=args.wandb.notes,
-            name=args.wandb.name,
-            resume=True,
-        )
+        wandb.init()
+        # wandb.init(
+        #     dir=args.out_dir,
+        #     project=args.wandb.project,
+        #     entity=args.wandb.entity,
+        #     config=args.__dict__,
+        #     notes=args.wandb.notes,
+        #     name=args.wandb.name,
+        #     resume=True,
+        # )
 
-    model = build_model(args.model)
-    model.cuda()
+    model = build_model(args.model).to(device)
     model.train()
 
     train(model, args, glm_function=args.training.task_kwargs.get("function_type"))

@@ -34,8 +34,113 @@ def sample_seeds(total_seeds, count):
         seeds.add(randint(0, total_seeds - 1))
     return seeds
 
-GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
+GLM_Function = "Poisson"
 def train(model, args):
+     #optimizers
+     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
+     curriculum = Curriculum(args.training.curriculum)
+ 
+     starting_step = 0
+     #loading from stopped training
+     state_path = os.path.join(args.out_dir, "state.pt")
+     if os.path.exists(state_path):
+         state = torch.load(state_path)
+         model.load_state_dict(state["model_state_dict"])
+         optimizer.load_state_dict(state["optimizer_state_dict"])
+         starting_step = state["train_step"]
+         for i in range(state["train_step"] + 1):
+             curriculum.update()
+ 
+     #dimension of x, batchsize
+     n_dims = model.n_dims
+     bsize = args.training.batch_size
+     #Sampler from D_x (Like from Paper)
+     data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
+     #Sampler from F (in our case a GLM) -> needs to be made random
+     task_sampler = get_task_sampler(
+         args.training.task,
+         n_dims,
+         bsize,
+         GLM_Function,
+         num_tasks=args.training.num_tasks,
+         **args.training.task_kwargs,
+     )
+     pbar = tqdm(range(starting_step, args.training.train_steps))
+ 
+     num_training_examples = args.training.num_training_examples
+ 
+     for i in pbar:
+         data_sampler_args = {}
+         task_sampler_args = {}
+ 
+         if "sparse" in args.training.task:
+             task_sampler_args["valid_coords"] = curriculum.n_dims_truncated
+         if num_training_examples is not None:
+             assert num_training_examples >= bsize
+             seeds = sample_seeds(num_training_examples, bsize)
+             data_sampler_args["seeds"] = seeds
+             task_sampler_args["seeds"] = [s + 1 for s in seeds]
+ 
+         xs = data_sampler.sample_xs(
+             curriculum.n_points,
+             bsize,
+             curriculum.n_dims_truncated,
+             **data_sampler_args,
+         )
+         task = task_sampler(**task_sampler_args)
+         ys = task.evaluate(xs)
+ 
+         loss_func = task.get_training_metric()
+ 
+         loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func)
+ 
+         point_wise_tags = list(range(curriculum.n_points))
+         point_wise_loss_func = task.get_metric()
+         point_wise_loss = point_wise_loss_func(output, ys.cuda()).mean(dim=0)
+ 
+         baseline_loss = (
+             sum(
+                 max(curriculum.n_dims_truncated - ii, 0)
+                 for ii in range(curriculum.n_points)
+             )
+             / curriculum.n_points
+         )
+ 
+         if i % args.wandb.log_every_steps == 0 and not args.test_run:
+             wandb.log(
+                 {
+                     "overall_loss": loss,
+                     "excess_loss": loss / baseline_loss,
+                     "pointwise/loss": dict(
+                         zip(point_wise_tags, point_wise_loss.cpu().numpy())
+                     ),
+                     "n_points": curriculum.n_points,
+                     "n_dims": curriculum.n_dims_truncated,
+                 },
+                 step=i,
+             )
+ 
+         curriculum.update()
+ 
+         pbar.set_description(f"loss {loss}")
+         if i % args.training.save_every_steps == 0 and not args.test_run:
+             training_state = {
+                 "model_state_dict": model.state_dict(),
+                 "optimizer_state_dict": optimizer.state_dict(),
+                 "train_step": i,
+             }
+             torch.save(training_state, state_path)
+ 
+         if (
+             args.training.keep_every_steps > 0
+             and i % args.training.keep_every_steps == 0
+             and not args.test_run
+             and i > 0
+         ):
+             torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
+
+GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
+def train_All_GLMS(model, args):
     #optimizers
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)

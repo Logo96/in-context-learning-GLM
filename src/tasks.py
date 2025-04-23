@@ -393,6 +393,8 @@ class GLM(Task):
     def get_training_metric(self):
         if self.function_type in ["linear", "sigmoid"]:
             return mean_squared_error
+        elif self.function_type == "poisson":
+            return PoissonNLLLoss(log_input=True, full=True)
         elif self.function_type in ["poisson", "neg_binomial"]:
             return mean_squared_error
         elif self.function_type == "logistic":

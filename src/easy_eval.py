@@ -41,7 +41,7 @@ def main():
     state = torch.load(args.ckpt, map_location=device)
     
     
-    model.load_state_dict(state['model_state_dict'])
+    model.load_state_dict(state['model_state_dict'] if 'model_state_dict' in state else state)
     model.eval()
     print(f"Loaded model from {args.ckpt}")
 

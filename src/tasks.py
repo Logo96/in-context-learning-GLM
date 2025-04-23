@@ -364,14 +364,14 @@ class GLM(Task):
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        z = (xs @ w_b).squeeze(-1)
+        z = self.scale * (xs @ w_b).squeeze(-1)
 
         if self.function_type == "linear":
             return z
         elif self.function_type == "sigmoid":
             return torch.sigmoid(z)
         elif self.function_type == "poisson":
-            return torch.poisson(torch.exp(z.clamp(max=10)))
+            return torch.poisson(torch.exp(z.clamp(max=4)))
         elif self.function_type == "logistic":
             return torch.bernoulli(torch.sigmoid(z))
         elif self.function_type == "neg_binomial":

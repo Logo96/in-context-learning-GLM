@@ -63,6 +63,7 @@ def train(model, args, glm_function=None):
         bsize,
         function_type=glm_function,
         num_tasks=args.training.num_tasks,
+        scale = args.training.task_kwargs.get("scaling", 1),
     )
     print(f"[Init] Sampling new GLM each batch, function_type={glm_function}")
 
@@ -86,21 +87,21 @@ def train(model, args, glm_function=None):
         task = task_sampler()
 
         
-        print(f"[Step {i}] Function_type: {task.function_type}")
+        # print(f"[Step {i}] Function_type: {task.function_type}")
 
         ys = task.evaluate(xs)
 
-        print(f"[Step {i}] xs shape: {xs.shape}, ys shape: {ys.shape}")
-        print(f"[Step {i}] xs mean: {xs.mean().item():.4f}, std: {xs.std().item():.4f}")
-        print(f"[Step {i}] ys mean: {ys.mean().item():.4f}, std: {ys.std().item():.4f}")
-        print(f"[Step {i}] w_b mean: {task.w_b.mean():.4f}, std: {task.w_b.std():.4f}")
+        # print(f"[Step {i}] xs shape: {xs.shape}, ys shape: {ys.shape}")
+        # print(f"[Step {i}] xs mean: {xs.mean().item():.4f}, std: {xs.std().item():.4f}")
+        # print(f"[Step {i}] ys mean: {ys.mean().item():.4f}, std: {ys.std().item():.4f}")
+        # print(f"[Step {i}] w_b mean: {task.w_b.mean():.4f}, std: {task.w_b.std():.4f}")
 
 
         # 3) Train on that fresh batch/task
         loss_func = task.get_training_metric()
         loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
 
-        print(f"[Step {i}] Output shape: {output.shape}, Loss: {loss:.4f}")
+        # print(f"[Step {i}] Output shape: {output.shape}, Loss: {loss:.4f}")
 
         point_wise_tags     = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
@@ -114,7 +115,7 @@ def train(model, args, glm_function=None):
             / curriculum.n_points
         )
 
-        print(f"[Step {i}] Baseline loss: {baseline_loss:.4f}, Excess loss: {loss / baseline_loss:.4f}")
+        # print(f"[Step {i}] Baseline loss: {baseline_loss:.4f}, Excess loss: {loss / baseline_loss:.4f}")
 
         if i % args.wandb.log_every_steps == 0 and not args.test_run:
             wandb.log(
@@ -267,14 +268,14 @@ def main(args):
         curriculum_args.dims.start = curriculum_args.dims.end
         args.training.train_steps = 100
     else:
-        wandb.init()
+        wandb.init(name=args.wandb.name)
         # wandb.init(
         #     dir=args.out_dir,
         #     project=args.wandb.project,
         #     entity=args.wandb.entity,
         #     config=args.__dict__,
         #     notes=args.wandb.notes,
-        #     name=args.wandb.name,
+            #   name=args.wandb.name,
         #     resume=True,
         # )
 

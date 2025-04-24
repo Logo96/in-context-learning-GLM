@@ -386,7 +386,7 @@ class GLM(Task):
     def get_metric():
         return squared_error
     
-    @staticmethod
+    @staticmethod   
     def generate_pool_dict(n_dims, num_tasks, function_type="poisson", **kwargs):
         return None  
 

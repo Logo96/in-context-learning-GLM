@@ -61,7 +61,6 @@ def evaluate_naive(ys_train, ys_test):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--config",    type=str, required=True)
     p.add_argument("--ckpt_dir",  type=str, required=True)
     p.add_argument("--n_tasks",   type=int, default=5000)
     p.add_argument("--n_train",   type=int, default=40)
@@ -70,7 +69,9 @@ def main():
     p.add_argument("--tol",       type=float, default=1e-12)
     args = p.parse_args()
 
-    cfg = yaml.load(open(args.config), Loader=yaml.FullLoader)
+    config_path = os.path.join(args.ckpt_dir, "config.yaml")
+    cfg = yaml.load(open(config_path), Loader=yaml.FullLoader)
+   
     model_conf = Namespace(**cfg["model"])
     model = build_model(model_conf).to(device)
 

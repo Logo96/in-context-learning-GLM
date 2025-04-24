@@ -1,4 +1,4 @@
-name: in-context-learning
+name: icl
 channels:
 - pkgs/main
 - pytorch

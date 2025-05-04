@@ -348,7 +348,7 @@ class DecisionTree(Task):
         return mean_squared_error
 
 class GLM(Task):
-    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, seeds=None):
+    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, sigma=1.0, seeds=None):
         super().__init__(n_dims, batch_size, None, seeds)
         if isinstance(function_type, str):
             function_type = [function_type] * batch_size
@@ -364,6 +364,7 @@ class GLM(Task):
             if r.numel() == 1:
                 r = r.repeat(batch_size)
         self.r = r
+        self.sigma = sigma
         self.scale = scale
         self.w_b = torch.randn(batch_size, n_dims, 1)
         if seeds is not None:
@@ -381,7 +382,7 @@ class GLM(Task):
             ft = self.function_type[i]
             ei = eta[i]
             if ft == "linear":
-                out[i] = ei
+                out[i] = torch.normal(ei, sigma)
             elif ft == "sigmoid":
                 out[i] = torch.sigmoid(ei)
             elif ft == "poisson":

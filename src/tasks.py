@@ -3,6 +3,9 @@ import torch
 from torch.nn import functional as F
 from torch.nn import PoissonNLLLoss
 
+def mu_from_logits(logits: torch.Tensor) -> torch.Tensor:
+    return torch.exp(logits)
+
 def squared_error(ys_pred, ys):
     return (ys - ys_pred).square()
 
@@ -348,59 +351,69 @@ class GLM(Task):
     def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, seeds=None):
         super().__init__(n_dims, batch_size, None, seeds)
         self.function_type = function_type
-        self.r = r
+        self.r = r       
         self.scale = scale
-
         self.w_b = torch.randn(batch_size, n_dims, 1)
         if seeds is not None:
-            generator = torch.Generator()
-            for i, seed in enumerate(seeds):
-                generator.manual_seed(seed)
-                self.w_b[i] = torch.randn(n_dims, 1, generator=generator)
+            g = torch.Generator()
+            for i, s in enumerate(seeds):
+                g.manual_seed(s)
+                self.w_b[i] = torch.randn(n_dims, 1, generator=g)
 
-
-
-    #Gets f(x) aka y label
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        z = self.scale * (xs @ w_b).squeeze(-1)
-
+        eta = self.scale * (xs @ w_b).squeeze(-1).clamp(-4, 4)
         if self.function_type == "linear":
-            return z
-        elif self.function_type == "sigmoid":
-            return torch.sigmoid(z)
-        elif self.function_type == "poisson":
-            return torch.poisson(torch.exp(z.clamp(max=4)))
-        elif self.function_type == "logistic":
-            return torch.bernoulli(torch.sigmoid(z))
-        elif self.function_type == "neg_binomial":
-            mu = torch.exp(z.clamp(max=10))
-            r = self.r
-            p = r / (r + mu)
-            return torch.distributions.NegativeBinomial(total_count=r, probs=p).sample()
-        else:
-            raise NotImplementedError
+            return eta
+        if self.function_type == "sigmoid":
+            return torch.sigmoid(eta)
+        if self.function_type == "poisson":
+            return torch.poisson(eta.exp())
+        if self.function_type == "logistic":
+            return torch.bernoulli(torch.sigmoid(eta))
+        if self.function_type == "neg_binomial":
+            mu = torch.exp(eta.clamp(-8, 8))
+            r = self.r.to(mu.device, mu.dtype).view(-1, 1)
+            logits = r.log() - (r + mu).log()
+            dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
+            return dist.sample()
+        raise NotImplementedError
 
+    def get_metric(self):
+        if self.function_type == "neg_binomial":
+            r_vec = self.r
+            def nb_nll_pointwise(preds, targets):
+                mu = mu_from_logits(preds)                     
+                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)  
+                logits = torch.log(r) - torch.log(r + mu)
+                dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
+                return -dist.log_prob(targets)                  # [B,K]
+
+            return nb_nll_pointwise
+        return squared_error  # assumes provided upstream
     @staticmethod
-    def get_metric():
-        return squared_error
-    
-    @staticmethod   
     def generate_pool_dict(n_dims, num_tasks, function_type="poisson", **kwargs):
-        return None  
+        return None
 
     def get_training_metric(self):
         if self.function_type in ["linear", "sigmoid"]:
             return mean_squared_error
-        elif self.function_type == "poisson":
+        if self.function_type == "poisson":
             return PoissonNLLLoss(log_input=True, full=True)
-        elif self.function_type in ["poisson", "neg_binomial"]:
-            return mean_squared_error
-        elif self.function_type == "logistic":
-            return lambda input, target: F.binary_cross_entropy(torch.sigmoid(input), target)
-        elif self.function_type == "multinomial":
+        if self.function_type == "neg_binomial":
+            r_vec = self.r
+
+            def nb_nll_mean(preds, targets):
+                mu = mu_from_logits(preds)                      # [B,K]
+                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)  # [B,1]
+                logits = torch.log(r) - torch.log(r + mu)
+                dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
+                return -dist.log_prob(targets).mean()
+
+            return nb_nll_mean
+        if self.function_type == "logistic":
+            return lambda inp, tgt: F.binary_cross_entropy_with_logits(inp, tgt)
+        if self.function_type == "multinomial":
             return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
-        else:
-            raise NotImplementedError
-    
+        raise NotImplementedError

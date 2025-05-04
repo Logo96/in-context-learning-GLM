@@ -348,7 +348,7 @@ class DecisionTree(Task):
         return mean_squared_error
 
 class GLM(Task):
-    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, seeds=None):
+    def __init__(self, n_dims, batch_size, function_type="poisson", r=1.0, scale=0.32, seeds=None):
         super().__init__(n_dims, batch_size, None, seeds)
         self.function_type = function_type
         self.r = r       
@@ -404,9 +404,9 @@ class GLM(Task):
         if self.function_type == "neg_binomial":
             r_vec = self.r
 
-            def nb_nll_mean(preds, targets):
-                mu = mu_from_logits(preds)                      # [B,K]
-                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)  # [B,1]
+            def nb_nll_loss(preds, targets):
+                mu = torch.exp(preds)  
+                r = torch.tensor(self.r, device=mu.device, dtype=mu.dtype)  
                 logits = torch.log(r) - torch.log(r + mu)
                 dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
                 return -dist.log_prob(targets).mean()

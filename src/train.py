@@ -214,9 +214,11 @@ def train_All_GLMS(model, args):
 
         loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
 
-        point_wise_tags = list(range(curriculum.n_points))
-        point_wise_loss_func = task.get_metric()
-        point_wise_loss = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
+        # point_wise_tags = list(range(curriculum.n_points))
+        # point_wise_loss_func = task.get_metric()
+        # point_wise_loss = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
+        point_wise_tags = None
+        point_wise_loss = None
 
         baseline_loss = (
             sum(

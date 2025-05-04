@@ -11,32 +11,30 @@ model:
 training:
   task: "GLM"
   task_kwargs:
-    function_type: "poisson" 
+    function_type: "neg_binomial
     scaling: 0.32
-  num_tasks: 250000000
-  num_training_examples: null
   data: "gaussian"
   batch_size: 256
   learning_rate: 0.00025
-  train_steps: 8000
+  train_steps: 5000
   save_every_steps: 1000
   keep_every_steps: 1000
-  resume_id: "poisson-0.32"
+  resume_id: "nb-0.32"
   curriculum:
     dims:
-      start: 10
+      start: 5
       end: 10
-      inc: 0
-      interval: 10000
+      inc: 1
+      interval: 500
     points:
-      start: 40
+      start: 10
       end: 40
-      inc: 0
-      interval: 10000
+      inc: 10
+      interval: 500
 
 wandb:
   project: null
   notes: "ICL GLM training"
-  name: "poisson-0.32"
+  name: "nb-0.32"
   log_every_steps: 10
 test_run: false

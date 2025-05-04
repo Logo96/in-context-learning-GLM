@@ -373,25 +373,25 @@ class GLM(Task):
         if self.function_type == "logistic":
             return torch.bernoulli(torch.sigmoid(eta))
         if self.function_type == "neg_binomial":
-            mu = torch.exp(eta.clamp(-8, 8))
-            r = self.r.to(mu.device, mu.dtype).view(-1, 1)
-            logits = r.log() - (r + mu).log()
+            mu = torch.exp(eta)  
+            r = torch.tensor(self.r, device=mu.device, dtype=mu.dtype)  
+            logits = torch.log(r) - torch.log(r + mu)
             dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
             return dist.sample()
         raise NotImplementedError
 
-    def get_metric(self):
-        if self.function_type == "neg_binomial":
-            r_vec = self.r
-            def nb_nll_pointwise(preds, targets):
-                mu = mu_from_logits(preds)                     
-                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)  
-                logits = torch.log(r) - torch.log(r + mu)
-                dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
-                return -dist.log_prob(targets)                  # [B,K]
+    # def get_metric(self):
+    #     if self.function_type == "neg_binomial":
+    #         r_vec = self.r
+    #         def nb_nll_pointwise(preds, targets):
+    #             mu = mu_from_logits(preds)                     
+    #             r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)  
+    #             logits = torch.log(r) - torch.log(r + mu)
+    #             dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
+    #             return -dist.log_prob(targets)                  # [B,K]
 
-            return nb_nll_pointwise
-        return squared_error  # assumes provided upstream
+    #         return nb_nll_pointwise
+    #     return squared_error  # assumes provided upstream
     @staticmethod
     def generate_pool_dict(n_dims, num_tasks, function_type="poisson", **kwargs):
         return None
@@ -402,7 +402,6 @@ class GLM(Task):
         if self.function_type == "poisson":
             return PoissonNLLLoss(log_input=True, full=True)
         if self.function_type == "neg_binomial":
-            r_vec = self.r
 
             def nb_nll_loss(preds, targets):
                 mu = torch.exp(preds)  
@@ -411,7 +410,7 @@ class GLM(Task):
                 dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
                 return -dist.log_prob(targets).mean()
 
-            return nb_nll_mean
+            return nb_nll_loss
         if self.function_type == "logistic":
             return lambda inp, tgt: F.binary_cross_entropy_with_logits(inp, tgt)
         if self.function_type == "multinomial":

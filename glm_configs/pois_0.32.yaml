@@ -1,0 +1,42 @@
+out_dir: "/root/in-context-learning-GLM/models"
+
+model:
+  family: "gpt2"
+  n_positions: 40
+  n_dims: 10
+  n_embd: 256
+  n_layer: 12
+  n_head: 8
+
+training:
+  task: "GLM"
+  task_kwargs:
+    function_type: "poisson" 
+    scaling: 0.32
+  num_tasks: null
+  num_training_examples: null
+  data: "gaussian"
+  batch_size: 256
+  learning_rate: 0.00025
+  train_steps: 8000
+  save_every_steps: 1000
+  keep_every_steps: 1000
+  resume_id: "poisson-0.32"
+  curriculum:
+    dims:
+      start: 10
+      end: 10
+      inc: 0
+      interval: 10000
+    points:
+      start: 40
+      end: 40
+      inc: 0
+      interval: 10000
+
+wandb:
+  project: null
+  notes: "ICL GLM training"
+  name: "poisson-0.32"
+  log_every_steps: 10
+test_run: false

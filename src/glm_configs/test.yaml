@@ -14,21 +14,21 @@ training:
     function_type: "neg_binomial
     scaling: 0.32
   data: "gaussian"
-  batch_size: 256
+  batch_size: 1
   learning_rate: 0.00025
-  train_steps: 5000
+  train_steps: 10
   save_every_steps: 1000
   keep_every_steps: 1000
   curriculum:
     dims:
       start: 10
       end: 10
-      inc: 0
+      inc: 1
       interval: 500
     points:
-      start: 40
+      start: 10
       end: 40
-      inc: 0
+      inc: 10
       interval: 500
 
 wandb:

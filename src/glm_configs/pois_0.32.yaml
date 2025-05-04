@@ -21,7 +21,6 @@ training:
   train_steps: 8000
   save_every_steps: 1000
   keep_every_steps: 1000
-  resume_id: "poisson-0.32"
   curriculum:
     dims:
       start: 10

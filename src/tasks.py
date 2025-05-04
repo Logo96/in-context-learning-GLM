@@ -392,8 +392,13 @@ class GLM(Task):
             elif ft == "neg_binomial":
                 mu = torch.exp(ei.clamp(-8, 8))
                 ri = self.r[i].to(mu.device, mu.dtype)
-                logits = ri.log() - (ri + mu).log()
-                dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
+
+                probs = ri/(ri + mu)
+                dist = torch.distributions.NegativeBinomial(total_count=ri, probs=probs)
+                
+                # logits = ri.log() - (ri + mu).log()
+                # dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
+                
                 out[i] = dist.sample()
             else:
                 raise NotImplementedError

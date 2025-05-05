@@ -363,7 +363,7 @@ class GLM(Task):
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        eta = self.scale * (xs @ w_b).squeeze(-1).clamp(-4, 4)
+        eta = self.scale * (xs @ w_b).squeeze(-1).clamp(-4, 4) #mul clmap first, ranges
         if self.function_type == "linear":
             return eta
         if self.function_type == "sigmoid":

@@ -11,7 +11,7 @@ model:
 training:
   task: "GLM"
   task_kwargs:
-    function_type: "neg_binomial
+    function_type: "neg_binomial"
     scaling: 0.32
   data: "gaussian"
   batch_size: 256

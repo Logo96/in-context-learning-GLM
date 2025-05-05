@@ -377,8 +377,11 @@ class GLM(Task):
         elif self.function_type == "neg_binomial":
             mu = torch.exp(z)
             r_tensor = torch.tensor(self.r, device=mu.device, dtype=mu.dtype)  # float r -> tensor
-            p = r_tensor / (r_tensor + mu)
-            dist = torch.distributions.NegativeBinomial(total_count=r_tensor, probs=p)
+            logits = torch.log(r_tensor) - torch.log(mu)
+            dist = torch.distributions.NegativeBinomial(
+             total_count=r_tensor,
+             logits=logits
+         )
             return dist.sample()
         else:
             raise NotImplementedError
@@ -401,8 +404,11 @@ class GLM(Task):
             def nb_nll_mean(preds, targets):
                 mu = torch.exp(preds)
                 r_tensor = torch.tensor(r_val, device=mu.device, dtype=mu.dtype)
-                p = r_tensor / (r_tensor + mu)
-                dist = torch.distributions.NegativeBinomial(total_count=r_tensor, probs=p)
+                logits = torch.log(r_tensor) - torch.log(mu)
+                dist = torch.distributions.NegativeBinomial(
+                        total_count=r_tensor,
+                        logits=logits
+                    )
                 return -dist.log_prob(targets).mean()
             return nb_nll_mean
         

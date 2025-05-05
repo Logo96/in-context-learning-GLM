@@ -389,9 +389,9 @@ class GLM(Task):
             elif ft == "logistic":
                 out[i] = torch.bernoulli(torch.sigmoid(ei))
             elif ft == "neg_binomial":
-                mu = torch.exp(ei.clamp(-8, 8))
+                mu = torch.exp(ei)
                 ri = self.r[i].to(mu.device, mu.dtype)
-                logits = ri.log() - (ri + mu).log()
+                logits = torch.log(ri) - torch.log(mu)
                 dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
                 out[i] = dist.sample()
             else:
@@ -436,17 +436,18 @@ class GLM(Task):
                 elif ft == "poisson":
                     loss = POISSON_NLL(pred_i, target_i).mean()
                 elif ft == "logistic":
-                    loss = lambda inp, tgt: F.binary_cross_entropy_with_logits(inp, tgt)
+                    loss = F.binary_cross_entropy_with_logits(pred_i, target_i).mean()
                 elif ft == "neg_binomial":
-                    r_vec = self.r
+                    pred_i = pred_i.clamp(min=-8.0, max=8.0)
+                    r_i = self.r[i]
                     def nb_nll_mean(preds, targets):
                         mu = mu_from_logits(preds)
-                        r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)
-                        
-                        p = r/(mu + r)
-                        dist = torch.distributions.NegativeBinomial(total_count=r, probs=p)
+                        r = r_i.to(mu.device, mu.dtype)
+                        logits = torch.log(r) - torch.log(mu)
+
+                        dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
                         return -dist.log_prob(targets).mean()
-                    return nb_nll_mean
+                    loss = nb_nll_mean(pred_i, target_i)
                 else:
                     raise NotImplementedError(f"Unknown family type: {ft}")
 

@@ -376,9 +376,10 @@ class GLM(Task):
             return torch.bernoulli(torch.sigmoid(z))
         elif self.function_type == "neg_binomial":
             mu = torch.exp(z)
-            r = self.r
-            p = r / (r + mu)
-            return torch.distributions.NegativeBinomial(total_count=r, probs=p).sample()
+            r_tensor = torch.tensor(self.r, device=mu.device, dtype=mu.dtype)  # float r -> tensor
+            p = r_tensor / (r_tensor + mu)
+            dist = torch.distributions.NegativeBinomial(total_count=r_tensor, probs=p)
+            return dist.sample()
         else:
             raise NotImplementedError
 
@@ -396,13 +397,12 @@ class GLM(Task):
         elif self.function_type == "poisson":
             return PoissonNLLLoss(log_input=True, full=True)
         elif self.function_type  == "neg_binomial":
-            r_vec = self.r
+            r_val = self.r  # float
             def nb_nll_mean(preds, targets):
-                mu = mu_from_logits(preds)
-                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)
-                
-                p = r/(mu + r)
-                dist = torch.distributions.NegativeBinomial(total_count=r, probs=p)
+                mu = torch.exp(preds)
+                r_tensor = torch.tensor(r_val, device=mu.device, dtype=mu.dtype)
+                p = r_tensor / (r_tensor + mu)
+                dist = torch.distributions.NegativeBinomial(total_count=r_tensor, probs=p)
                 return -dist.log_prob(targets).mean()
             return nb_nll_mean
         

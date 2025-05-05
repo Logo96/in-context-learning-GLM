@@ -166,8 +166,8 @@ def train(model, args, glm_function=None):
 
 
 def train_All_GLMS(model, args):
-    GLM_TYPES = ["linear", "sigmoid", "logistic", "poisson"]
-    optimizer   = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
+    GLM_TYPES = args.training["task_kwargs"]["function_type"]
+    optimizer   = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate)
     curriculum  = Curriculum(args.training.curriculum)
     state_path  = os.path.join(args.out_dir, "state.pt")
     starting_step = 0

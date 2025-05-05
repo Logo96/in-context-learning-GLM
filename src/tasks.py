@@ -348,7 +348,7 @@ class DecisionTree(Task):
         return mean_squared_error
 
 class GLM(Task):
-    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, sigma=1.0, seeds=None):
+    def __init__(self, n_dims, batch_size, function_type="poisson", r=5.0, scale=1.0, seeds=None):
         super().__init__(n_dims, batch_size, None, seeds)
         if isinstance(function_type, str):
             function_type = [function_type] * batch_size
@@ -364,7 +364,6 @@ class GLM(Task):
             if r.numel() == 1:
                 r = r.repeat(batch_size)
         self.r = r
-        self.sigma = sigma
         self.scale = scale
         self.w_b = torch.randn(batch_size, n_dims, 1)
         if seeds is not None:
@@ -376,29 +375,24 @@ class GLM(Task):
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        eta = self.scale * (xs @ w_b).squeeze(-1).clamp(-4, 4)
+        eta = (self.scale * (xs @ w_b).squeeze(-1)).clamp(-4, 4)
         out = torch.empty_like(eta)
         for i in range(B):
             ft = self.function_type[i]
             ei = eta[i]
             if ft == "linear":
-                out[i] = torch.normal(ei, sigma)
+                out[i] = ei
             elif ft == "sigmoid":
                 out[i] = torch.sigmoid(ei)
             elif ft == "poisson":
-                out[i] = torch.poisson(ei.exp())
+                out[i] = torch.poisson(torch.exp(ei))
             elif ft == "logistic":
                 out[i] = torch.bernoulli(torch.sigmoid(ei))
             elif ft == "neg_binomial":
                 mu = torch.exp(ei.clamp(-8, 8))
                 ri = self.r[i].to(mu.device, mu.dtype)
-
-                probs = ri/(ri + mu)
-                dist = torch.distributions.NegativeBinomial(total_count=ri, probs=probs)
-                
-                # logits = ri.log() - (ri + mu).log()
-                # dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
-                
+                logits = ri.log() - (ri + mu).log()
+                dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
                 out[i] = dist.sample()
             else:
                 raise NotImplementedError
@@ -421,26 +415,43 @@ class GLM(Task):
     @staticmethod
     def generate_pool_dict(n_dims, num_tasks, function_type="poisson", **kwargs):
         return None
+    
 
     def get_training_metric(self):
-        if len(set(self.function_type)) != 1:
-            return mean_squared_error
-        ft = self.function_type[0]
-        if ft in ["linear", "sigmoid"]:
-            return mean_squared_error
-        if ft == "poisson":
-            return PoissonNLLLoss(log_input=True, full=True)
-        if ft == "neg_binomial":
-            r_vec = self.r
-            def nb_nll_mean(preds, targets):
-                mu = mu_from_logits(preds)
-                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)
-                logits = torch.log(r) - torch.log(r + mu)
-                dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
-                return -dist.log_prob(targets).mean()
-            return nb_nll_mean
-        if ft == "logistic":
-            return lambda inp, tgt: F.binary_cross_entropy_with_logits(inp, tgt)
-        if ft == "multinomial":
-            return lambda yhat, y: F.cross_entropy(yhat.view(-1, yhat.size(-1)), y.view(-1).long())
-        raise NotImplementedError
+        POISSON_NLL = PoissonNLLLoss(log_input=True, full=True)
+
+        r_vec = self.r
+        function_types = self.function_type
+
+        def batch_loss(preds, targets):
+            B = preds.shape[0]
+            per_sample_losses = []
+            for i in range(B):
+                ft = function_types[i]
+                pred_i = preds[i]
+                target_i = targets[i]
+
+                if ft in ["linear", "sigmoid"]:
+                    loss = mean_squared_error(pred_i, target_i).mean()
+                elif ft == "poisson":
+                    loss = POISSON_NLL(pred_i, target_i).mean()
+                elif ft == "logistic":
+                    loss = lambda inp, tgt: F.binary_cross_entropy_with_logits(inp, tgt)
+                elif ft == "neg_binomial":
+                    r_vec = self.r
+                    def nb_nll_mean(preds, targets):
+                        mu = mu_from_logits(preds)
+                        r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)
+                        
+                        p = r/(mu + r)
+                        dist = torch.distributions.NegativeBinomial(total_count=r, probs=p)
+                        return -dist.log_prob(targets).mean()
+                    return nb_nll_mean
+                else:
+                    raise NotImplementedError(f"Unknown family type: {ft}")
+
+                per_sample_losses.append(loss)
+
+            return torch.stack(per_sample_losses).mean()
+
+        return batch_loss

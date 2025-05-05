@@ -364,18 +364,18 @@ class GLM(Task):
     def evaluate(self, xs):
         B, K, D = xs.shape
         w_b = self.w_b.to(xs.device)
-        z = self.scale * (xs @ w_b).squeeze(-1)
+        z = (self.scale * (xs @ w_b)).squeeze(-1).clamp(-4, 4)
 
         if self.function_type == "linear":
             return z
         elif self.function_type == "sigmoid":
             return torch.sigmoid(z)
         elif self.function_type == "poisson":
-            return torch.poisson(torch.exp(z.clamp(max=4)))
+            return torch.poisson(torch.exp(z))
         elif self.function_type == "logistic":
             return torch.bernoulli(torch.sigmoid(z))
         elif self.function_type == "neg_binomial":
-            mu = torch.exp(z.clamp(max=10))
+            mu = torch.exp(z)
             r = self.r
             p = r / (r + mu)
             return torch.distributions.NegativeBinomial(total_count=r, probs=p).sample()
@@ -395,8 +395,17 @@ class GLM(Task):
             return mean_squared_error
         elif self.function_type == "poisson":
             return PoissonNLLLoss(log_input=True, full=True)
-        elif self.function_type in ["poisson", "neg_binomial"]:
-            return mean_squared_error
+        elif self.function_type  == "neg_binomial":
+            r_vec = self.r
+            def nb_nll_mean(preds, targets):
+                mu = mu_from_logits(preds)
+                r = r_vec.to(mu.device, mu.dtype).unsqueeze(-1)
+                
+                p = r/(mu + r)
+                dist = torch.distributions.NegativeBinomial(total_count=r, probs=p)
+                return -dist.log_prob(targets).mean()
+            return nb_nll_mean
+        
         elif self.function_type == "logistic":
             return lambda input, target: F.binary_cross_entropy(torch.sigmoid(input), target)
         elif self.function_type == "multinomial":

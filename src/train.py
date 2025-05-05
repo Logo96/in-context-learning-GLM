@@ -64,6 +64,7 @@ def train(model, args, glm_function=None):
         function_type=glm_function,
         num_tasks=args.training.num_tasks,
         scale = args.training.task_kwargs.get("scaling", 1),
+        r = args.training.task_kwargs.get("r", None),
     )
     print(f"[Init] Sampling new GLM each batch, function_type={glm_function}")
 

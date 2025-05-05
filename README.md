@@ -1,44 +1,62 @@
-This repository contains the code and models for our paper:
+# In-Context Learning of Generalized Linear Models (GLMs) with Transformers
 
-**What Can Transformers Learn In-Context? A Case Study of Simple Function Classes** <br>
-*Shivam Garg\*, Dimitris Tsipras\*, Percy Liang, Gregory Valiant* <br>
-Paper: http://arxiv.org/abs/2208.01066 <br><br>
+This repository implements the experiments described in the project:
 
-![](setting.jpg)
+**Expanding the GLM Toolkit for Transformers as Statisticians**  
 
-```bibtex
-    @InProceedings{garg2022what,
-        title={What Can Transformers Learn In-Context? A Case Study of Simple Function Classes},
-        author={Shivam Garg and Dimitris Tsipras and Percy Liang and Gregory Valiant},
-        year={2022},
-        booktitle={arXiv preprint}
-    }
-```
+We explore the capability of transformer models to learn and distinguish between a wide range of **Generalized Linear Models (GLMs)** purely through **in-context learning**, without explicit gradient updates. Our approach extends prior work on linear and logistic regression by introducing **Poisson**, **Negative Binomial**, and **Multinomial** GLMs.
+---
 
-## Getting started
-You can start by cloning our repository and following the steps below.
+## Project Overview
 
-1. Install the dependencies for our code using Conda. You may need to adjust the environment YAML file depending on your setup.
+Transformers have demonstrated the ability to approximate learning algorithms via in-context learning (ICL). This project investigates whether a single transformer model can:
 
-    ```
-    conda env create -f environment.yml
-    conda activate in-context-learning
-    ```
+- **Learn a variety of GLM types** from examples alone.
+- **Select the correct GLM** family based on in-context patterns.
+- **Adapt to overdispersion** in count data by implicitly choosing between Poisson and Negative Binomial models.
 
-2. Download [model checkpoints](https://github.com/dtsip/in-context-learning/releases/download/initial/models.zip) and extract them in the current directory.
+We show that a GPT-2-style transformer can learn to:
+- Perform accurate regression/classification across multiple GLM types.
+- Select between families without any ground-truth family labels.
+- Match or outperform naive baselines, and approach oracle-level GLM solutions in terms of likelihood.
 
-    ```
-    wget https://github.com/dtsip/in-context-learning/releases/download/initial/models.zip
-    unzip models.zip
-    ```
+---
 
-3. [Optional] If you plan to train, populate `conf/wandb.yaml` with you wandb info.
+## Code 
 
-That's it! You can now explore our pre-trained models or train your own. The key entry points
-are as follows (starting from `src`):
-- The `eval.ipynb` notebook contains code to load our own pre-trained models, plot the pre-computed metrics, and evaluate them on new data.
-- `train.py` takes as argument a configuration yaml from `conf` and trains the corresponding model. You can try `python train.py --config conf/toy.yaml` for a quick training run.
+- **`train.py`** – Main training script. Handles curriculum scheduling, task sampling, optimizer setup, checkpointing, and W&B logging.
+- **`tasks.py`** – Defines the `GLM` task class and sampling logic for different function families (`linear`, `logistic`, `poisson`, `neg_binomial`, `exponential`, etc.).
+- **`glm_configs/`** – YAML configuration files specifying hyperparameters, curriculum, model architecture, and logging behavior.
+- **`scripts/`** – Optional scripts for running sweeps, evaluation, and training jobs on cloud infrastructure (GCP, Slurm, etc.).
 
-# Maintainers
-* [Shivam Garg](https://cs.stanford.edu/~shivamg/)
-* [Dimitris Tsipras](https://dtsipras.com/)
+---
+
+## Supported GLMs
+
+| GLM Type           | Link Function        | Response Distribution | Data Type     |
+|--------------------|----------------------|------------------------|---------------|
+| Linear Regression   | Identity              | Normal                 | Continuous    |
+| Logistic Regression | Sigmoid               | Bernoulli              | Binary        |
+| Poisson Regression  | Exponential           | Poisson                | Count         |
+| Negative Binomial   | Exponential           | NegBin (NB2)           | Count (overdispersed) |
+| Exponential         | Exponential           | Exponential            | Time-to-event |
+
+---
+
+## Methodology
+
+For each training step:
+1. A GLM function `f(x)` is sampled from a family (e.g. Poisson, Logistic).
+2. A context of `k=40` in-context examples is generated from this function.
+3. The transformer is trained to predict the label for a new input `x_{k+1}`.
+4. The loss is computed using the distribution-appropriate likelihood (e.g., PoissonNLLLoss).
+
+All learning happens **without parameter updates at inference time**, relying solely on in-context adaptation.
+
+---
+
+## How to Train
+
+1. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt

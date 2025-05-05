@@ -1,4 +1,5 @@
 import os
+import random
 from random import randint
 import uuid
 import copy
@@ -7,6 +8,7 @@ from tqdm import tqdm
 import torch
 import yaml
 
+from tasks import mu_from_logits
 from eval import get_run_metrics
 from tasks import get_task_sampler
 from samplers import get_data_sampler
@@ -39,7 +41,8 @@ def sample_seeds(total_seeds, count):
     return seeds
 
 def train(model, args, glm_function=None):
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate,
+                              betas=(0.9, 0.95))
     curriculum = Curriculum(args.training.curriculum)
 
     starting_step = 0
@@ -71,7 +74,6 @@ def train(model, args, glm_function=None):
     num_training_examples = args.training.num_training_examples
     
     for i in pbar:
-        # 1) Sample data
         data_sampler_args = {}
         if num_training_examples is not None:
             assert num_training_examples >= bsize
@@ -85,23 +87,13 @@ def train(model, args, glm_function=None):
             **data_sampler_args,
         )
         task = task_sampler()
-
-        
-        # print(f"[Step {i}] Function_type: {task.function_type}")
-
         ys = task.evaluate(xs)
-
-        # print(f"[Step {i}] xs shape: {xs.shape}, ys shape: {ys.shape}")
-        # print(f"[Step {i}] xs mean: {xs.mean().item():.4f}, std: {xs.std().item():.4f}")
-        # print(f"[Step {i}] ys mean: {ys.mean().item():.4f}, std: {ys.std().item():.4f}")
-        # print(f"[Step {i}] w_b mean: {task.w_b.mean():.4f}, std: {task.w_b.std():.4f}")
-
-
-        # 3) Train on that fresh batch/task
         loss_func = task.get_training_metric()
         loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
 
-        # print(f"[Step {i}] Output shape: {output.shape}, Loss: {loss:.4f}")
+        if i % 500 == 0:
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            print(f"[Grad {i}] norm {grad_norm:.3f}")
 
         point_wise_tags     = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
@@ -115,7 +107,18 @@ def train(model, args, glm_function=None):
             / curriculum.n_points
         )
 
-        # print(f"[Step {i}] Baseline loss: {baseline_loss:.4f}, Excess loss: {loss / baseline_loss:.4f}")
+        with torch.no_grad():
+            mu_hat = mu_from_logits(output)
+            mu_hat_mean = mu_hat.mean().item()
+            ys_mean = ys.to(mu_hat).mean().item()
+            r_mean = task.r.mean().item()
+            r_std = task.r.std().item()
+            per_ep_var = ys.var(dim=1)
+            per_ep_mean = ys.mean(dim=1)
+            overdispersion = per_ep_var / (per_ep_mean + 1e-6)
+            overdispersion_mean = overdispersion.mean().item()
+
+        print(f"[Step {i}] μ̂ mean: {mu_hat_mean:.4f}, y mean: {ys_mean:.4f}, r mean: {r_mean:.2f}, overdispersion: {overdispersion_mean:.2f}")
 
         if i % args.wandb.log_every_steps == 0 and not args.test_run:
             wandb.log(
@@ -126,6 +129,11 @@ def train(model, args, glm_function=None):
                     "n_points": curriculum.n_points,
                     "n_dims": curriculum.n_dims_truncated,
                     "function_type": glm_function,
+                    "mu_hat_mean": mu_hat_mean,
+                    "y_mean": ys_mean,
+                    "r_mean": r_mean,
+                    "overdispersion": overdispersion_mean,
+                    "grad_norm": grad_norm if i % 500 == 0 else None,
                 },
                 step=i,
             )
@@ -156,101 +164,104 @@ def train(model, args, glm_function=None):
             )
             print(f"[Snapshot] Kept model checkpoint at step {i}")
 
-def train_All_GLMS(model, args):
-    GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
-    #optimizers
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
-    curriculum = Curriculum(args.training.curriculum)
 
+def train_All_GLMS(model, args):
+    GLM_TYPES = args.training["task_kwargs"]["function_type"]
+    optimizer   = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate)
+    curriculum  = Curriculum(args.training.curriculum)
+    state_path  = os.path.join(args.out_dir, "state.pt")
     starting_step = 0
-    #loading from stopped training
-    state_path = os.path.join(args.out_dir, "state.pt")
     if os.path.exists(state_path):
         state = torch.load(state_path)
         model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])
         starting_step = state["train_step"]
-        for i in range(state["train_step"] + 1):
+        for _ in range(state["train_step"] + 1):
             curriculum.update()
-    #dimension of x, batchsize
-    n_dims = model.n_dims
-    bsize = args.training.batch_size
-    #Sampler from D_x (Like from Paper)
-    data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
-    pbar = tqdm(range(starting_step, args.training.train_steps))
 
+    n_dims = model.n_dims
+    bsize  = args.training.batch_size
+    data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
+    pbar   = tqdm(range(starting_step, args.training.train_steps))
     num_training_examples = args.training.num_training_examples
 
     for i in pbar:
-        #Sampler from F (in our case a GLM)
+        family = random.choice(GLM_TYPES)
         task_sampler = get_task_sampler(
             args.training.task,
             n_dims,
             bsize,
-            function_type=GLM_TYPES[i % len(GLM_TYPES)],
+            function_type=family,
             num_tasks=args.training.num_tasks,
         )
-        data_sampler_args = {}
-        task_sampler_args = {}
 
+        data_sampler_args, task_sampler_args = {}, {}
         if "sparse" in args.training.task:
             task_sampler_args["valid_coords"] = curriculum.n_dims_truncated
         if num_training_examples is not None:
-            assert num_training_examples >= bsize
             seeds = sample_seeds(num_training_examples, bsize)
             data_sampler_args["seeds"] = seeds
-            task_sampler_args["seeds"] = [s + 1 for s in seeds]
+            task_sampler_args["seeds"]  = [s + 1 for s in seeds]
 
         xs = data_sampler.sample_xs(
             curriculum.n_points,
             bsize,
             curriculum.n_dims_truncated,
             **data_sampler_args,
-        )
-        task = task_sampler(**task_sampler_args)
-        ys = task.evaluate(xs)
+        ).to(device)
+
+        task   = task_sampler(**task_sampler_args)
+        ys     = task.evaluate(xs).to(device)
+        output = model(xs, ys)
 
         loss_func = task.get_training_metric()
+        loss      = loss_func(output, ys)
 
-        loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
 
         point_wise_tags = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
-        point_wise_loss = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
+        point_wise_loss = point_wise_loss_func(output, ys).mean(dim=0)
 
         baseline_loss = (
-            sum(
-                max(curriculum.n_dims_truncated - ii, 0)
-                for ii in range(curriculum.n_points)
-            )
+            sum(max(curriculum.n_dims_truncated - ii, 0) for ii in range(curriculum.n_points))
             / curriculum.n_points
         )
 
         if i % args.wandb.log_every_steps == 0 and not args.test_run:
+            fam_loss_dict = {
+                f"family_loss/{ft}": (loss.item() if ft == family else None)
+                for ft in GLM_TYPES
+            }
             wandb.log(
                 {
-                    "overall_loss": loss,
-                    "excess_loss": loss / baseline_loss,
-                    "pointwise/loss": dict(
-                        zip(point_wise_tags, point_wise_loss.cpu().numpy())
-                    ),
+                    "overall_loss": loss.item(),
+                    "excess_loss":  (loss / baseline_loss).item(),
+                    "pointwise/loss": dict(zip(point_wise_tags, point_wise_loss.detach().cpu().numpy())),
                     "n_points": curriculum.n_points,
-                    "n_dims": curriculum.n_dims_truncated,
-                    "glm_type": GLM_TYPES[i % len(GLM_TYPES)]
+                    "n_dims":   curriculum.n_dims_truncated,
+                    "glm_type": family,
+                    **fam_loss_dict,
                 },
                 step=i,
             )
+            print(f"[{i}] family: {family}")
 
         curriculum.update()
+        pbar.set_description(f"{family} | loss {loss.item():.4f}")
 
-        pbar.set_description(f"loss {loss}")
         if i % args.training.save_every_steps == 0 and not args.test_run:
-            training_state = {
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "train_step": i,
-            }
-            torch.save(training_state, state_path)
+            torch.save(
+                {
+                    "model_state_dict":     model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "train_step":           i,
+                },
+                state_path,
+            )
 
         if (
             args.training.keep_every_steps > 0
@@ -259,6 +270,8 @@ def train_All_GLMS(model, args):
             and i > 0
         ):
             torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
+
+
 
 
 def main(args):
@@ -282,8 +295,8 @@ def main(args):
     model = build_model(args.model).to(device)
     model.train()
 
-    train(model, args, glm_function=args.training.task_kwargs.get("function_type"))
-
+    #train(model, args, glm_function=args.training.task_kwargs.get("function_type"))
+    train_All_GLMS(model, args)
     if not args.test_run:
         _ = get_run_metrics(args.out_dir)  # precompute metrics for eval
 

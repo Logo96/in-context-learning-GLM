@@ -20,6 +20,8 @@ We show that a GPT-2-style transformer can learn to:
 - Select between families without any ground-truth family labels.
 - Match or outperform naive baselines, and approach oracle-level GLM solutions in terms of likelihood.
 
+Huggingface: https://huggingface.co/icl-182
+
 ---
 
 ## Code 
@@ -59,4 +61,5 @@ All learning happens **without parameter updates at inference time**, relying so
 
 1. **Install dependencies**:
    ```bash
-   pip install -r requirements.txt
+   source /setup.sh
+2. ** Run train.py with appropriate config

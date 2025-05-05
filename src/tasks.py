@@ -381,7 +381,7 @@ class GLM(Task):
             ft = self.function_type[i]
             ei = eta[i]
             if ft == "linear":
-                out[i] = ei
+                out[i] = torch.normal(ei, sigma)
             elif ft == "sigmoid":
                 out[i] = torch.sigmoid(ei)
             elif ft == "poisson":

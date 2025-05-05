@@ -394,6 +394,8 @@ class GLM(Task):
                 logits = torch.log(ri) - torch.log(mu)
                 dist = torch.distributions.NegativeBinomial(total_count=ri, logits=logits)
                 out[i] = dist.sample()
+            elif ft == "expoential":
+                out[i] = torch.distributions.Exponential(rate=ei.exp())
             else:
                 raise NotImplementedError
         return out
@@ -448,6 +450,8 @@ class GLM(Task):
                         dist = torch.distributions.NegativeBinomial(total_count=r, logits=logits)
                         return -dist.log_prob(targets).mean()
                     loss = nb_nll_mean(pred_i, target_i)
+                elif ft == "exponential":
+                    loss = lambda preds, targets: (targets * torch.exp(-preds) + preds).mean()
                 else:
                     raise NotImplementedError(f"Unknown family type: {ft}")
 

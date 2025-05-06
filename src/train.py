@@ -32,12 +32,6 @@ def train_step(model, xs, ys, optimizer, loss_func):
     return loss.detach().item(), output.detach()
 
 
-def sample_seeds(total_seeds, count):
-    seeds = set()
-    while len(seeds) < count:
-        seeds.add(randint(0, total_seeds - 1))
-    return seeds
-
 def train(model, args, glm_function=None):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)
@@ -74,10 +68,6 @@ def train(model, args, glm_function=None):
     for i in pbar:
         # 1) Sample data
         data_sampler_args = {}
-        if num_training_examples is not None:
-            assert num_training_examples >= bsize
-            seeds = sample_seeds(num_training_examples, bsize)
-            data_sampler_args["seeds"] = seeds
 
         xs = data_sampler.sample_xs(
             curriculum.n_points,
@@ -101,12 +91,12 @@ def train(model, args, glm_function=None):
         # 3) Train on that fresh batch/task
         loss_func = task.get_training_metric()
         loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
+        
+        if i % 100 == 0:
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            print(f"[Grad {i}] norm {grad_norm:.3f}")
 
         # print(f"[Step {i}] Output shape: {output.shape}, Loss: {loss:.4f}")
-
-        point_wise_tags     = list(range(curriculum.n_points))
-        point_wise_loss_func = task.get_metric()
-        point_wise_loss     = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
 
         baseline_loss = (
             sum(
@@ -123,10 +113,10 @@ def train(model, args, glm_function=None):
                 {
                     "overall_loss": loss,
                     "excess_loss": loss / baseline_loss,
-                    # "pointwise/loss": dict(zip(point_wise_tags, point_wise_loss.cpu().numpy())),
                     "n_points": curriculum.n_points,
                     "n_dims": curriculum.n_dims_truncated,
                     "function_type": glm_function,
+                    "grad_norm": grad_norm if i % 100 == 0 else None,
                 },
                 step=i,
             )
@@ -157,110 +147,6 @@ def train(model, args, glm_function=None):
             )
             print(f"[Snapshot] Kept model checkpoint at step {i}")
 
-def train_All_GLMS(model, args):
-    GLM_TYPES=["linear", "sigmoid", "poisson", "logistic", "neg_binomial", "multinomial"]
-    #optimizers
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
-    curriculum = Curriculum(args.training.curriculum)
-
-    starting_step = 0
-    #loading from stopped training
-    state_path = os.path.join(args.out_dir, "state.pt")
-    if os.path.exists(state_path):
-        state = torch.load(state_path)
-        model.load_state_dict(state["model_state_dict"])
-        optimizer.load_state_dict(state["optimizer_state_dict"])
-        starting_step = state["train_step"]
-        for i in range(state["train_step"] + 1):
-            curriculum.update()
-    #dimension of x, batchsize
-    n_dims = model.n_dims
-    bsize = args.training.batch_size
-    #Sampler from D_x (Like from Paper)
-    data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
-    pbar = tqdm(range(starting_step, args.training.train_steps))
-
-    num_training_examples = args.training.num_training_examples
-
-    for i in pbar:
-        #Sampler from F (in our case a GLM)
-        task_sampler = get_task_sampler(
-            args.training.task,
-            n_dims,
-            bsize,
-            function_type=GLM_TYPES[i % len(GLM_TYPES)],
-            num_tasks=args.training.num_tasks,
-        )
-        data_sampler_args = {}
-        task_sampler_args = {}
-
-        if "sparse" in args.training.task:
-            task_sampler_args["valid_coords"] = curriculum.n_dims_truncated
-        if num_training_examples is not None:
-            assert num_training_examples >= bsize
-            seeds = sample_seeds(num_training_examples, bsize)
-            data_sampler_args["seeds"] = seeds
-            task_sampler_args["seeds"] = [s + 1 for s in seeds]
-
-        xs = data_sampler.sample_xs(
-            curriculum.n_points,
-            bsize,
-            curriculum.n_dims_truncated,
-            **data_sampler_args,
-        )
-        task = task_sampler(**task_sampler_args)
-        ys = task.evaluate(xs)
-
-        loss_func = task.get_training_metric()
-
-        loss, output = train_step(model, xs.to(device), ys.to(device), optimizer, loss_func)
-
-        point_wise_tags = list(range(curriculum.n_points))
-        point_wise_loss_func = task.get_metric()
-        point_wise_loss = point_wise_loss_func(output, ys.to(device)).mean(dim=0)
-
-        baseline_loss = (
-            sum(
-                max(curriculum.n_dims_truncated - ii, 0)
-                for ii in range(curriculum.n_points)
-            )
-            / curriculum.n_points
-        )
-
-        if i % args.wandb.log_every_steps == 0 and not args.test_run:
-            wandb.log(
-                {
-                    "overall_loss": loss,
-                    "excess_loss": loss / baseline_loss,
-                    "pointwise/loss": dict(
-                        zip(point_wise_tags, point_wise_loss.cpu().numpy())
-                    ),
-                    "n_points": curriculum.n_points,
-                    "n_dims": curriculum.n_dims_truncated,
-                    "glm_type": GLM_TYPES[i % len(GLM_TYPES)]
-                },
-                step=i,
-            )
-
-        curriculum.update()
-
-        pbar.set_description(f"loss {loss}")
-        if i % args.training.save_every_steps == 0 and not args.test_run:
-            training_state = {
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "train_step": i,
-            }
-            torch.save(training_state, state_path)
-
-        if (
-            args.training.keep_every_steps > 0
-            and i % args.training.keep_every_steps == 0
-            and not args.test_run
-            and i > 0
-        ):
-            torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
-
 
 def main(args):
     if args.test_run:
@@ -270,15 +156,7 @@ def main(args):
         args.training.train_steps = 100
     else:
         wandb.init(name=args.wandb.name)
-        # wandb.init(
-        #     dir=args.out_dir,
-        #     project=args.wandb.project,
-        #     entity=args.wandb.entity,
-        #     config=args.__dict__,
-        #     notes=args.wandb.notes,
-            #   name=args.wandb.name,
-        #     resume=True,
-        # )
+      
 
     model = build_model(args.model).to(device)
     model.train()

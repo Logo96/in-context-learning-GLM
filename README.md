@@ -63,3 +63,5 @@ All learning happens **without parameter updates at inference time**, relying so
    ```bash
    source /setup.sh
 2. ** Run train.py with appropriate config
+3. ** Push to huggingace (hf.ipynb)
+4. ** Run evals through the eval.ipynb script

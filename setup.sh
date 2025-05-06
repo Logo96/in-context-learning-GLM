@@ -1,4 +1,3 @@
-
 ENV_YML="env1.yml"
 PIP_TXT="env2.txt"
 CONDA_DIR="$HOME/miniconda3"
@@ -22,7 +21,6 @@ export PATH="$CONDA_DIR/bin:$PATH"
 source "$CONDA_DIR/etc/profile.d/conda.sh"
 
 # Step 1.5: Install tmux if not already installed
-# Step 1.5: Install tmux if not already installed (Docker-safe)
 if ! command -v tmux &> /dev/null; then
     echo "Installing tmux (Docker-safe)..."
     export DEBIAN_FRONTEND=noninteractive

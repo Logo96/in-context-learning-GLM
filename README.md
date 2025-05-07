@@ -20,8 +20,6 @@ We show that a GPT-2-style transformer can learn to:
 - Select between families without any ground-truth family labels.
 - Match or outperform naive baselines, and approach oracle-level GLM solutions in terms of likelihood.
 
-Huggingface: https://huggingface.co/icl-182
-
 ---
 
 ## Code 
@@ -30,7 +28,15 @@ Huggingface: https://huggingface.co/icl-182
 - **`tasks.py`** – Defines the `GLM` task class and sampling logic for different function families (`linear`, `logistic`, `poisson`, `neg_binomial`, `exponential`, etc.).
 - **`glm_configs/`** – YAML configuration files specifying hyperparameters, curriculum, model architecture, and logging behavior.
 - **`eval.ipnyb`** – Evaluation suite for all of our expirements
+- **`fast_eval.py`** – A fast evaluation suite for evaluating several models at once. 
 
+## Results
+- **`plots/eval`** – Evaluation plots on validation set for poisson, negative binomial, and jointly trained models
+- **`plots/train`** – Train plots on validation set for poisson, negative binomial, and jointly trained models
+
+## Models
+
+Huggingface: https://huggingface.co/icl-182
 
 ---
 
@@ -91,4 +97,6 @@ Here's how to train the model:
     * `eval_data_type`: The type of data to evaluate on (e.g., `poisson, negative binomial, etc. `).
 
     Other evaluation parameters like `scale` and `r` can usually be configured within the notebook itself if you need to deviate from the distribution from which the data was trained on. 
+
+    Alternatively you can choose to use fast_eval.py with the required params, though this method doesn't provide the same ease of use. 
 

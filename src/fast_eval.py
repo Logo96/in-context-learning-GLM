@@ -125,6 +125,8 @@ def main():
     )
     parser.add_argument("--models", nargs="+", required=True,
                         help="List of model names in the repo to evaluate")
+    parser.add_argument("--titles", nargs="+", required=True,
+                    help="List of titles to use for each model (must match order and length of --models)")
     parser.add_argument("--out_dir", default="outputs",
                         help="Root directory to save per-checkpoint folders")
     parser.add_argument("--n_tasks", type=int, default=10000,
@@ -143,7 +145,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
-    for model_repo in args.models:
+    for model_repo, model_title in zip(args.models, args.titles):
         # download & load config
         ckpt_dir = snapshot_download("icl-182/" + model_repo, repo_type="model")
         sys.path.append(ckpt_dir)
@@ -160,8 +162,7 @@ def main():
         if isinstance(func_types, str):
             func_types = [func_types]
 
-        base = os.path.splitext(model_repo)[0]
-        folder = os.path.join(args.out_dir, base)
+        folder = os.path.join(args.out_dir, model_repo)
         os.makedirs(folder, exist_ok=True)
 
         ckpt_path = os.path.join(ckpt_dir, "state.pt")
@@ -196,7 +197,7 @@ def main():
                 "true_oracle": true_losses,
                 "naive":      naive_losses
             }
-            json_path = os.path.join(folder, f"{base}_{ft}.json")
+            json_path = os.path.join(folder, f"{model_repo}_{ft}.json")
             with open(json_path, "w") as jf:
                 json.dump(json_out, jf, indent=2)
 
@@ -212,7 +213,7 @@ def main():
             
             plt.xlabel("Context length", fontsize=12)
             plt.ylabel(f"{loss_name} Loss", fontsize=12)
-            plt.title(f"{loss_name} Loss vs. Context Length", fontsize=14)
+            plt.title(model_title, fontsize=14)
             plt.legend(loc="upper right", fontsize=12)
             plt.xticks(fontsize=11)
             plt.yticks(fontsize=11)
@@ -225,7 +226,7 @@ def main():
 
             plt.grid(True)
             plt.tight_layout()
-            png_path = os.path.join(folder, f"{base}_{ft}.png")
+            png_path = os.path.join(folder, f"{model_repo}_{ft}.png")
             plt.savefig(png_path)
             plt.close()
 

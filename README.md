@@ -32,7 +32,7 @@ We show that a GPT-2-style transformer can learn to:
 
 ## Results
 - **`plots/eval`** – Evaluation plots on validation set for poisson, negative binomial, and jointly trained models
-- **`plots/train`** – Train plots on validation set for poisson, negative binomial, and jointly trained models
+- **`plots/train`** – Train plots for poisson, negative binomial, and jointly trained models
 
 ## Models
 

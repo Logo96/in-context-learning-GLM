@@ -166,3 +166,4 @@ widgetsnbextension==4.0.14
 xgboost==1.6.1
 yaspin==2.5.0
 zipp==3.20.2
+python-dotenv==1.0.1  

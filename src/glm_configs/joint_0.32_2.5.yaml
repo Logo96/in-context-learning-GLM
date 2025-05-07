@@ -13,14 +13,14 @@ training:
   task_kwargs:
     function_type: ["poisson", "neg_binomial"]
     scaling: 0.32
-    r: 1.2
+    r: 2.5
   data: "gaussian"
   batch_size: 256
   learning_rate: 0.00025
-  train_steps: 60000
-  save_every_steps: 5000
-  keep_every_steps: 10000
-  resume_id: "joint-0.32-1.2"
+  train_steps: 20000
+  save_every_steps: 4000
+  keep_every_steps: 4000
+  resume_id: "joint-0.32-2.5"
   curriculum:
     dims:
       start: 10
@@ -36,6 +36,6 @@ training:
 wandb:
   project: null
   notes: "ICL GLM training"
-  name: "joint-0.32-1.2"
+  name: "joint-0.32-2.5"
   log_every_steps: 10
 test_run: false

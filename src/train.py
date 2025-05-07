@@ -7,7 +7,6 @@ from tqdm import tqdm
 import torch
 import yaml
 
-from eval import get_run_metrics
 from tasks import get_task_sampler
 from samplers import get_data_sampler
 from curriculum import Curriculum

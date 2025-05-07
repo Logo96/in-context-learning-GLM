@@ -11,17 +11,16 @@ model:
 training:
   task: "GLM"
   task_kwargs:
-    function_type: ["poisson"]
+    function_type: ["poisson", "neg_binomial"]
     scaling: 0.32
-  num_tasks: 250000000
-  num_training_examples: null
+    r: 2.5
   data: "gaussian"
   batch_size: 256
   learning_rate: 0.00025
-  train_steps: 8000
-  save_every_steps: 1000
-  keep_every_steps: 1000
-  resume_id: "poisson-0.32"
+  train_steps: 20000
+  save_every_steps: 4000
+  keep_every_steps: 4000
+  resume_id: "joint-0.32-2.5"
   curriculum:
     dims:
       start: 10
@@ -37,6 +36,6 @@ training:
 wandb:
   project: null
   notes: "ICL GLM training"
-  name: "poisson-0.32"
+  name: "joint-0.32-2.5"
   log_every_steps: 10
 test_run: false

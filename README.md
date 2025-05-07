@@ -29,7 +29,8 @@ Huggingface: https://huggingface.co/icl-182
 - **`train.py`** – Main training script. Handles curriculum scheduling, task sampling, optimizer setup, checkpointing, and W&B logging.
 - **`tasks.py`** – Defines the `GLM` task class and sampling logic for different function families (`linear`, `logistic`, `poisson`, `neg_binomial`, `exponential`, etc.).
 - **`glm_configs/`** – YAML configuration files specifying hyperparameters, curriculum, model architecture, and logging behavior.
-- **`scripts/`** – Optional scripts for running sweeps, evaluation, and training jobs on cloud infrastructure (GCP, Slurm, etc.).
+- **`eval.ipnyb`** – Evaluation suite for all of our expirements
+
 
 ---
 
@@ -50,7 +51,7 @@ Huggingface: https://huggingface.co/icl-182
 For each training step:
 1. A GLM function `f(x)` is sampled from a family (e.g. Poisson, Logistic).
 2. A context of `k=40` in-context examples is generated from this function.
-3. The transformer is trained to predict the label for a new input `x_{k+1}`.
+3. The transformer is trained to predict the label for a new input `x_{k+1}` for all `k<= 39`
 4. The loss is computed using the distribution-appropriate likelihood (e.g., PoissonNLLLoss).
 
 All learning happens **without parameter updates at inference time**, relying solely on in-context adaptation.
@@ -59,9 +60,47 @@ All learning happens **without parameter updates at inference time**, relying so
 
 ## How to Train
 
-1. **Install dependencies**:
-   ```bash
-   source /setup.sh
-2. ** Run train.py with appropriate config
-3. ** Push to huggingace (hf.ipynb)
-4. ** Run evals through the eval.ipynb script
+Here's how to train the model:
+
+1.  **Install dependencies**:
+    ```bash
+    source /setup.sh
+    ```
+
+2.  **Activate Conda Environment**:
+    ```bash
+    source /root/miniconda3/etc/profile.d/conda.sh
+    conda activate icl
+    ```
+
+3.  **Run the training script**:
+    Use the `train.py` script with your desired configuration file.
+    ```bash
+    python3 train.py --config glm_configs/poisson_0.32.yaml
+    ```
+    *(Replace `glm_configs/poisson_0.32.yaml` with the path to your specific config file.)*
+
+4.  **Push to the Hugging Face Hub (Optional)**:
+    Model results are saved to the `models/` directory. To push your trained model checkpoints to the Huggingface , you can use the push_to_hf.ipynb notebook:
+    ```bash
+    jupyter nbconvert \
+      --to notebook \
+      --execute push_to_hf.ipynb \
+      --ExecutePreprocessor.timeout=600
+    ```
+
+5.  **Run Evaluation**:
+    Evaluate the trained model using the provided notebook.
+    ```bash
+    jupyter nbconvert \
+      --to notebook \
+      --execute eval.ipynb \
+      --ExecutePreprocessor.timeout=600
+    ```
+    You will typically need to specify the following parameters within the notebook (or pass them as variables):
+    * `hf_model_id`: The ID of the model on Hugging Face (e.g., `username/repo_name`).
+    * `checkpoint_path`: The path to the model checkpoint file (e.g., `models/checkpoint-10000.pt`).
+    * `eval_data_type`: The type of data to evaluate on (e.g., `poisson, negative binomial, etc. `).
+
+    Other evaluation parameters like `scale` and `r` can usually be configured within the notebook itself if you need to deviate from the distribution from which the data was trained on. 
+

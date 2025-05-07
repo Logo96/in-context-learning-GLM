@@ -82,24 +82,12 @@ Here's how to train the model:
 
 4.  **Push to the Hugging Face Hub (Optional)**:
     Model results are saved to the `models/` directory. To push your trained model checkpoints to the Huggingface , you can use the push_to_hf.ipynb notebook:
-    ```bash
-    jupyter nbconvert \
-      --to notebook \
-      --execute push_to_hf.ipynb \
-      --ExecutePreprocessor.timeout=600
-    ```
 
 5.  **Run Evaluation**:
-    Evaluate the trained model using the provided notebook.
-    ```bash
-    jupyter nbconvert \
-      --to notebook \
-      --execute eval.ipynb \
-      --ExecutePreprocessor.timeout=600
-    ```
+    Evaluate the trained model using the provided notebook in eval.ipynb. 
     You will typically need to specify the following parameters within the notebook (or pass them as variables):
-    * `hf_model_id`: The ID of the model on Hugging Face (e.g., `username/repo_name`).
-    * `checkpoint_path`: The path to the model checkpoint file (e.g., `models/checkpoint-10000.pt`).
+    * `hf_model_id`: The ID of the model on Huggingface (e.g., `username/repo_name`).
+    * `checkpoint_path`: The path to the model checkpoint file in the specified repo from above(e.g., `checkpoint-10000.pt`).
     * `eval_data_type`: The type of data to evaluate on (e.g., `poisson, negative binomial, etc. `).
 
     Other evaluation parameters like `scale` and `r` can usually be configured within the notebook itself if you need to deviate from the distribution from which the data was trained on. 

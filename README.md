@@ -87,7 +87,7 @@ Here's how to train the model:
     *(Replace `glm_configs/poisson_0.32.yaml` with the path to your specific config file.)*
 
 4.  **Push to the Hugging Face Hub (Optional)**:
-    Model results are saved to the `models/` directory. To push your trained model checkpoints to the Huggingface , you can use the push_to_hf.ipynb notebook:
+    Model results are saved to the `models/` directory. To push your trained model checkpoints to the Huggingface , you can use the push_to_hf.py file:
 
 5.  **Run Evaluation**:
     Evaluate the trained model using the provided notebook in eval.ipynb. 
@@ -98,5 +98,5 @@ Here's how to train the model:
 
     Other evaluation parameters like `scale` and `r` can usually be configured within the notebook itself if you need to deviate from the distribution from which the data was trained on. 
 
-    Alternatively you can choose to use fast_eval.py with the required params, though this method doesn't provide the same ease of use. 
+    Alternatively you can choose to use fast_eval.py or ft_eval.py with the required params, though this method doesn't provide the same ease of use. Check the respective files for argument input. 
 

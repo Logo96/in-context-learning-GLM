@@ -1,0 +1,41 @@
+out_dir: "/root/in-context-learning-GLM/models"
+
+model:
+  family: "gpt2"
+  n_positions: 40
+  n_dims: 10
+  n_embd: 256
+  n_layer: 12
+  n_head: 8
+
+training:
+  task: "GLM"
+  task_kwargs:
+    function_type: ["poisson", "neg_binomial"]
+    scaling: 0.32
+    r: 1.2
+  data: "gaussian"
+  batch_size: 256
+  learning_rate: 0.00025
+  train_steps: 60000
+  save_every_steps: 5000
+  keep_every_steps: 10000
+  resume_id: "joint-1.2-curr"
+  curriculum:
+    dims:
+      start: 2
+      end: 10
+      inc: 1
+      interval: 3000
+    points:
+      start: 8
+      end: 40
+      inc: 4
+      interval: 3000
+
+wandb:
+  project: null
+  notes: "ICL GLM training"
+  name: "joint-1.2-curr"
+  log_every_steps: 10
+test_run: false

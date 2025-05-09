@@ -12,6 +12,7 @@ from samplers import get_data_sampler
 from curriculum import Curriculum
 from schema import schema
 from models import build_model
+from huggingface_hub import hf_hub_download
 
 import wandb
 
@@ -26,7 +27,21 @@ def train(model, args):
 
     starting_step = 0
     state_path = os.path.join(args.out_dir, "state.pt")
-    if os.path.exists(state_path):
+
+    # load from pretrained 
+    if args.model.hf_pretrain_path:
+        hf_state_path = hf_hub_download(
+            repo_id=args.model.hf_pretrain_path, 
+            filename="state.json",
+            repo_type="model"
+        )
+        state = torch.load(hf_state_path)
+        model.load_state_dict(state["model_state_dict"])
+        optimizer.load_state_dict(state["optimizer_state_dict"])
+        # don't update starting step or curriculum 
+        print(f"Start from pretrained model: {args.model.hf_pretrain_path}")
+
+    elif os.path.exists(state_path):
         state = torch.load(state_path)
         model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])

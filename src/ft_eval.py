@@ -87,7 +87,7 @@ def main():
                                             ws_true, ft, r)
 
         # set up plot + results dict
-        plt.figure(figsize=(8,5))
+        plt.figure(figsize=(8,5), constrained_layout=True)
         ctx = list(range(1, n_context))
         plt.plot(ctx, gd_losses,   label="GD Oracle",    linestyle="--", linewidth=2)
         plt.plot(ctx, true_losses, label="True Oracle",  linestyle=":",  linewidth=2)

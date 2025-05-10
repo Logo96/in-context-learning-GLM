@@ -32,7 +32,7 @@ def train(model, args):
     if args.model.hf_pretrain_path:
         hf_state_path = hf_hub_download(
             repo_id=args.model.hf_pretrain_path, 
-            filename="state.json",
+            filename="state.pt",
             repo_type="model"
         )
         state = torch.load(hf_state_path)

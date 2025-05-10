@@ -20,6 +20,7 @@ model_schema = {
     "n_embd": merge(tinteger, required),
     "n_layer": merge(tinteger, required),
     "n_head": merge(tinteger, required),
+    "hf_pretrain_path": merge(tstring, nullable, default(None)),  
 }
 
 curriculum_base_schema = {

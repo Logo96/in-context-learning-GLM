@@ -108,6 +108,7 @@ Here's how to train the model:
 
     #### Example: `ft_eval.py`
     ```bash
+        python ft_eval.py \
         --models poisson-0.32 nb-0.32-1.2 nb-0.32-2.5 nb-0.32-5.0 \
         --model_titles "Poisson" "Negative Binomial (r=1.2)" "Negative Binomial (r=2.5)" "Negative
         Binomial (r=5.0)" \

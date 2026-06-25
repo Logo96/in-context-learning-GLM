@@ -105,6 +105,14 @@ class GLM(Task):
              logits=logits
          )
             return dist.sample()
+        elif self.function_type == "gamma":
+            # Gamma GLM: y ~ Gamma(shape=alpha, rate=beta) where mu = alpha / beta
+            # Using shape = 2.0 (fixed) and rate = 2.0 / mu to get mean mu
+            mu = torch.exp(z).clamp(min=1e-6)
+            alpha = torch.tensor(2.0, device=mu.device, dtype=mu.dtype)
+            beta = alpha / mu
+            dist = torch.distributions.Gamma(concentration=alpha, rate=beta)
+            return dist.sample()
         else:
             raise NotImplementedError
 

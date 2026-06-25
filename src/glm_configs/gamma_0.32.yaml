@@ -1,0 +1,18 @@
+# Gamma GLM configuration (shape=2.0 fixed)
+n_dims: 20
+batch_size: 64
+n_positions: 101
+n_embd: 256
+n_layer: 12
+n_head: 8
+learning_rate: 0.0003
+weight_decay: 0.0
+function_type: gamma
+scale: 0.32
+max_train_steps: 100000
+eval_freq: 1000
+save_freq: 5000
+curriculum: false
+wandb: true
+project: "icl-glm"
+run_name: "gamma_0.32"
